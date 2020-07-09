@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scene/3d/spatial.h"
+#include "scene/3d/node_3d.h"
 
 #include <vector>
 
@@ -11,8 +11,8 @@ struct GravParticle
 	Vector3 m_position;
 };
 
-class Gravar : public Spatial {
-	GDCLASS(Gravar, Spatial);
+class Gravar : public Node3D {
+	GDCLASS(Gravar, Node3D);
 
 protected:
 	static void _bind_methods();
