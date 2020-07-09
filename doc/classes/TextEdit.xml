@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="TextEdit" inherits="Control" category="Core" version="3.2">
+<class name="TextEdit" inherits="Control" version="4.0">
 	<brief_description>
 		Multiline text editing control.
 	</brief_description>
@@ -48,6 +48,7 @@
 			<return type="void">
 			</return>
 			<description>
+				Centers the viewport on the line the editing cursor is at. This also resets the [member scroll_horizontal] value to [code]0[/code].
 			</description>
 		</method>
 		<method name="clear_colors">
@@ -94,7 +95,7 @@
 			</argument>
 			<description>
 				Moves the cursor at the specified [code]column[/code] index.
-				If [code]adjust_viewport[/code] is set to true, the viewport will center at the cursor position after the move occurs.
+				If [code]adjust_viewport[/code] is set to [code]true[/code], the viewport will center at the cursor position after the move occurs.
 			</description>
 		</method>
 		<method name="cursor_set_line">
@@ -110,8 +111,8 @@
 			</argument>
 			<description>
 				Moves the cursor at the specified [code]line[/code] index.
-				If [code]adjust_viewport[/code] is set to true, the viewport will center at the cursor position after the move occurs.
-				If [code]can_be_hidden[/code] is set to true, the specified [code]line[/code] can be hidden using [method set_line_as_hidden].
+				If [code]adjust_viewport[/code] is set to [code]true[/code], the viewport will center at the cursor position after the move occurs.
+				If [code]can_be_hidden[/code] is set to [code]true[/code], the specified [code]line[/code] can be hidden using [method set_line_as_hidden].
 			</description>
 		</method>
 		<method name="cut">
@@ -299,7 +300,7 @@
 			</description>
 		</method>
 		<method name="search" qualifiers="const">
-			<return type="PoolIntArray">
+			<return type="Dictionary">
 			</return>
 			<argument index="0" name="key" type="String">
 			</argument>
@@ -310,7 +311,15 @@
 			<argument index="3" name="from_column" type="int">
 			</argument>
 			<description>
-				Perform a search inside the text. Search flags can be specified in the[code]SEARCH_*[/code] enum.
+				Perform a search inside the text. Search flags can be specified in the [enum SearchFlags] enum.
+				Returns an empty [code]Dictionary[/code] if no result was found. Otherwise, returns a [code]Dictionary[/code] containing [code]line[/code] and [code]column[/code] entries, e.g:
+				[codeblock]
+				var result = search(key, flags, line, column)
+				if !result.empty():
+				    # Result found.
+				    var line_number = result.line
+				    var column_number = result.column
+				[/codeblock]
 			</description>
 		</method>
 		<method name="select">
@@ -326,6 +335,7 @@
 			</argument>
 			<description>
 				Perform selection, from line/column to line/column.
+				If [member selecting_enabled] is [code]false[/code], no selection will occur.
 			</description>
 		</method>
 		<method name="select_all">
@@ -333,6 +343,18 @@
 			</return>
 			<description>
 				Select all the text.
+				If [member selecting_enabled] is [code]false[/code], no selection will occur.
+			</description>
+		</method>
+		<method name="set_line">
+			<return type="void">
+			</return>
+			<argument index="0" name="line" type="int">
+			</argument>
+			<argument index="1" name="new_text" type="String">
+			</argument>
+			<description>
+				Sets the text for a specific line.
 			</description>
 		</method>
 		<method name="set_line_as_hidden">
@@ -420,18 +442,30 @@
 			If [code]true[/code], the line containing the cursor is highlighted.
 		</member>
 		<member name="minimap_draw" type="bool" setter="draw_minimap" getter="is_drawing_minimap" default="false">
+			If [code]true[/code], a minimap is shown, providing an outline of your source code.
 		</member>
 		<member name="minimap_width" type="int" setter="set_minimap_width" getter="get_minimap_width" default="80">
+			The width, in pixels, of the minimap.
 		</member>
 		<member name="mouse_default_cursor_shape" type="int" setter="set_default_cursor_shape" getter="get_default_cursor_shape" override="true" enum="Control.CursorShape" default="1" />
 		<member name="override_selected_font_color" type="bool" setter="set_override_selected_font_color" getter="is_overriding_selected_font_color" default="false">
+			If [code]true[/code], custom [code]font_color_selected[/code] will be used for selected text.
 		</member>
 		<member name="readonly" type="bool" setter="set_readonly" getter="is_readonly" default="false">
 			If [code]true[/code], read-only mode is enabled. Existing text cannot be modified and new text cannot be added.
 		</member>
+		<member name="scroll_horizontal" type="int" setter="set_h_scroll" getter="get_h_scroll" default="0">
+			The current horizontal scroll value.
+		</member>
+		<member name="scroll_vertical" type="float" setter="set_v_scroll" getter="get_v_scroll" default="0.0">
+			The current vertical scroll value.
+		</member>
 		<member name="selecting_enabled" type="bool" setter="set_selecting_enabled" getter="is_selecting_enabled" default="true">
+			If [code]true[/code], text can be selected.
+			If [code]false[/code], text can not be selected by the user or by the [method select] or [method select_all] methods.
 		</member>
 		<member name="shortcut_keys_enabled" type="bool" setter="set_shortcut_keys_enabled" getter="is_shortcut_keys_enabled" default="true">
+			If [code]true[/code], shortcut keys for context menu items are enabled, even if the context menu is disabled.
 		</member>
 		<member name="show_line_numbers" type="bool" setter="set_show_line_numbers" getter="is_show_line_numbers_enabled" default="false">
 			If [code]true[/code], line numbers are displayed to the left of the text.
@@ -488,6 +522,12 @@
 			<description>
 			</description>
 		</signal>
+		<signal name="symbol_validate">
+			<argument index="0" name="symbol" type="String">
+			</argument>
+			<description>
+			</description>
+		</signal>
 		<signal name="text_changed">
 			<description>
 				Emitted when the text changes.
@@ -505,7 +545,7 @@
 			Search from end to beginning.
 		</constant>
 		<constant name="MENU_CUT" value="0" enum="MenuItems">
-			Cuts (Copies and clears) the selected text.
+			Cuts (copies and clears) the selected text.
 		</constant>
 		<constant name="MENU_COPY" value="1" enum="MenuItems">
 			Copies the selected text.
@@ -530,7 +570,7 @@
 		</constant>
 	</constants>
 	<theme_items>
-		<theme_item name="background_color" type="Color" default="Color( 0, 0, 0, 1 )">
+		<theme_item name="background_color" type="Color" default="Color( 0, 0, 0, 0 )">
 			Sets the background [Color] of this [TextEdit]. [member syntax_highlighting] has to be enabled.
 		</theme_item>
 		<theme_item name="bookmark_color" type="Color" default="Color( 0.08, 0.49, 0.98, 1 )">
@@ -572,9 +612,9 @@
 		</theme_item>
 		<theme_item name="focus" type="StyleBox">
 		</theme_item>
-		<theme_item name="fold" type="Texture">
+		<theme_item name="fold" type="Texture2D">
 		</theme_item>
-		<theme_item name="folded" type="Texture">
+		<theme_item name="folded" type="Texture2D">
 		</theme_item>
 		<theme_item name="font" type="Font">
 			Sets the default [Font].
@@ -585,6 +625,7 @@
 		<theme_item name="font_color_readonly" type="Color" default="Color( 0.88, 0.88, 0.88, 0.5 )">
 		</theme_item>
 		<theme_item name="font_color_selected" type="Color" default="Color( 0, 0, 0, 1 )">
+			Sets the [Color] of the selected text. [member override_selected_font_color] has to be enabled.
 		</theme_item>
 		<theme_item name="function_color" type="Color" default="Color( 0.4, 0.64, 0.81, 1 )">
 		</theme_item>
@@ -612,12 +653,12 @@
 		<theme_item name="selection_color" type="Color" default="Color( 0.49, 0.49, 0.49, 1 )">
 			Sets the highlight [Color] of text selections.
 		</theme_item>
-		<theme_item name="space" type="Texture">
+		<theme_item name="space" type="Texture2D">
 		</theme_item>
 		<theme_item name="symbol_color" type="Color" default="Color( 0.94, 0.94, 0.94, 1 )">
 		</theme_item>
-		<theme_item name="tab" type="Texture">
-			Sets a custom [Texture] for tab text characters.
+		<theme_item name="tab" type="Texture2D">
+			Sets a custom [Texture2D] for tab text characters.
 		</theme_item>
 		<theme_item name="word_highlighted_color" type="Color" default="Color( 0.8, 0.9, 0.9, 0.15 )">
 			Sets the highlight [Color] of multiple occurrences. [member highlight_all_occurrences] has to be enabled.

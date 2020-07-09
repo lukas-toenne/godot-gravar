@@ -2,7 +2,13 @@
  *  X.509 certificate parsing and verification
  *
  *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+ *
+ *  This file is provided under the Apache License 2.0, or the
+ *  GNU General Public License v2.0 or later.
+ *
+ *  **********
+ *  Apache License 2.0:
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -15,6 +21,27 @@
  *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
+ *
+ *  **********
+ *
+ *  **********
+ *  GNU General Public License v2.0 or later:
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  **********
  *
  *  This file is part of mbed TLS (https://tls.mbed.org)
  */
@@ -65,6 +92,19 @@
 
 #if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
 #include <windows.h>
+#if defined(_MSC_VER) && _MSC_VER <= 1600
+/* Visual Studio 2010 and earlier issue a warning when both <stdint.h> and
+ * <intsafe.h> are included, as they redefine a number of <TYPE>_MAX constants.
+ * These constants are guaranteed to be the same, though, so we suppress the
+ * warning when including intsafe.h.
+ */
+#pragma warning( push )
+#pragma warning( disable : 4005 )
+#endif
+#include <intsafe.h>
+#if defined(_MSC_VER) && _MSC_VER <= 1600
+#pragma warning( pop )
+#endif
 #else
 #include <time.h>
 #endif
@@ -513,6 +553,12 @@ static int x509_get_basic_constraints( unsigned char **p,
     if( *p != end )
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    /* Do not accept max_pathlen equal to INT_MAX to avoid a signed integer
+     * overflow, which is an undefined behavior. */
+    if( *max_pathlen == INT_MAX )
+        return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
+                MBEDTLS_ERR_ASN1_INVALID_LENGTH );
 
     (*max_pathlen)++;
 
@@ -1277,6 +1323,7 @@ int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
     char filename[MAX_PATH];
     char *p;
     size_t len = strlen( path );
+    int lengthAsInt = 0;
 
     WIN32_FIND_DATAW file_data;
     HANDLE hFind;
@@ -1291,7 +1338,18 @@ int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
     p = filename + len;
     filename[len++] = '*';
 
-    w_ret = MultiByteToWideChar( CP_ACP, 0, filename, (int)len, szDir,
+    if ( FAILED ( SizeTToInt( len, &lengthAsInt ) ) )
+        return( MBEDTLS_ERR_X509_FILE_IO_ERROR );
+
+    /*
+     * Note this function uses the code page CP_ACP, and assumes the incoming
+     * string is encoded in ANSI, before translating it into Unicode. If the
+     * incoming string were changed to be UTF-8, then the length check needs to
+     * change to check the number of characters, not the number of bytes, in the
+     * incoming string are less than MAX_PATH to avoid a buffer overrun with
+     * MultiByteToWideChar().
+     */
+    w_ret = MultiByteToWideChar( CP_ACP, 0, filename, lengthAsInt, szDir,
                                  MAX_PATH - 3 );
     if( w_ret == 0 )
         return( MBEDTLS_ERR_X509_BAD_INPUT_DATA );
@@ -1308,8 +1366,11 @@ int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
         if( file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
             continue;
 
+        if ( FAILED( SizeTToInt( wcslen( file_data.cFileName ), &lengthAsInt ) ) )
+            return( MBEDTLS_ERR_X509_FILE_IO_ERROR );
+
         w_ret = WideCharToMultiByte( CP_ACP, 0, file_data.cFileName,
-                                     lstrlenW( file_data.cFileName ),
+                                     lengthAsInt,
                                      p, (int) len - 1,
                                      NULL, NULL );
         if( w_ret == 0 )
@@ -2087,15 +2148,13 @@ check_signature:
             continue;
         }
 
+        *r_parent = parent;
+        *r_signature_is_good = signature_is_good;
+
         break;
     }
 
-    if( parent != NULL )
-    {
-        *r_parent = parent;
-        *r_signature_is_good = signature_is_good;
-    }
-    else
+    if( parent == NULL )
     {
         *r_parent = fallback_parent;
         *r_signature_is_good = fallback_signature_is_good;
@@ -2236,7 +2295,7 @@ static int x509_crt_check_ee_locally_trusted(
  * Tests for (aspects of) this function should include at least:
  * - trusted EE
  * - EE -> trusted root
- * - EE -> intermedate CA -> trusted root
+ * - EE -> intermediate CA -> trusted root
  * - if relevant: EE untrusted
  * - if relevant: EE -> intermediate, untrusted
  * with the aspect under test checked at each relevant level (EE, int, root).

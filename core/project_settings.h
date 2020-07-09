@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -28,15 +28,14 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef GLOBAL_CONFIG_H
-#define GLOBAL_CONFIG_H
+#ifndef PROJECT_SETTINGS_H
+#define PROJECT_SETTINGS_H
 
 #include "core/object.h"
 #include "core/os/thread_safe.h"
 #include "core/set.h"
 
 class ProjectSettings : public Object {
-
 	GDCLASS(ProjectSettings, Object);
 	_THREAD_SAFE_CLASS_
 
@@ -48,44 +47,45 @@ public:
 		NO_BUILTIN_ORDER_BASE = 1 << 16
 	};
 
+	struct AutoloadInfo {
+		StringName name;
+		String path;
+		bool is_singleton = false;
+	};
+
 protected:
 	struct VariantContainer {
-		int order;
-		bool persist;
+		int order = 0;
+		bool persist = false;
 		Variant variant;
 		Variant initial;
-		bool hide_from_editor;
-		bool overridden;
-		bool restart_if_changed;
-		VariantContainer() :
-				order(0),
-				persist(false),
-				hide_from_editor(false),
-				overridden(false),
-				restart_if_changed(false) {
-		}
+		bool hide_from_editor = false;
+		bool overridden = false;
+		bool restart_if_changed = false;
+
+		VariantContainer() {}
+
 		VariantContainer(const Variant &p_variant, int p_order, bool p_persist = false) :
 				order(p_order),
 				persist(p_persist),
-				variant(p_variant),
-				hide_from_editor(false),
-				overridden(false),
-				restart_if_changed(false) {
+				variant(p_variant) {
 		}
 	};
 
-	bool registering_order;
-	int last_order;
-	int last_builtin_order;
+	bool registering_order = true;
+	int last_order = 0;
+	int last_builtin_order = NO_BUILTIN_ORDER_BASE;
 	Map<StringName, VariantContainer> props;
 	String resource_path;
 	Map<StringName, PropertyInfo> custom_prop_info;
-	bool disable_feature_overrides;
-	bool using_datapack;
+	bool disable_feature_overrides = false;
+	bool using_datapack = false;
 	List<String> input_presets;
 
 	Set<String> custom_features;
 	Map<StringName, StringName> feature_overrides;
+
+	Map<StringName, AutoloadInfo> autoloads;
 
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
@@ -97,8 +97,8 @@ protected:
 	Error _load_settings_binary(const String &p_path);
 	Error _load_settings_text_or_binary(const String &p_text_path, const String &p_bin_path);
 
-	Error _save_settings_text(const String &p_file, const Map<String, List<String> > &props, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
-	Error _save_settings_binary(const String &p_file, const Map<String, List<String> > &props, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
+	Error _save_settings_text(const String &p_file, const Map<String, List<String>> &props, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
+	Error _save_settings_binary(const String &p_file, const Map<String, List<String>> &props, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
 
 	Error _save_custom_bnd(const String &p_file);
 
@@ -156,6 +156,12 @@ public:
 
 	bool has_custom_feature(const String &p_feature) const;
 
+	Map<StringName, AutoloadInfo> get_autoload_list() const;
+	void add_autoload(const AutoloadInfo &p_autoload);
+	void remove_autoload(const StringName &p_autoload);
+	bool has_autoload(const StringName &p_autoload) const;
+	AutoloadInfo get_autoload(const StringName &p_name) const;
+
 	ProjectSettings();
 	~ProjectSettings();
 };
@@ -166,4 +172,4 @@ Variant _GLOBAL_DEF(const String &p_var, const Variant &p_default, bool p_restar
 #define GLOBAL_DEF_RST(m_var, m_value) _GLOBAL_DEF(m_var, m_value, true)
 #define GLOBAL_GET(m_var) ProjectSettings::get_singleton()->get(m_var)
 
-#endif
+#endif // PROJECT_SETTINGS_H
